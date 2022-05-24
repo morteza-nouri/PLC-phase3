@@ -15,8 +15,12 @@ import main.ast.nodes.statement.set.*;
 import main.ast.types.NoType;
 import main.ast.types.Type;
 import main.ast.types.primitives.BoolType;
+import main.ast.types.primitives.ClassType;
 import main.ast.types.primitives.IntType;
 import main.ast.types.set.SetType;
+import main.compileError.typeError.CannotExtendFromMainClass;
+import main.compileError.typeError.MainClassCantInherit;
+import main.compileError.typeError.NoConstructorInMainClass;
 import main.compileError.typeError.UnsupportedTypeForPrint;
 import main.symbolTable.utils.graph.Graph;
 import main.visitor.*;
@@ -25,7 +29,9 @@ import javax.lang.model.type.ArrayType;
 
 public class TypeChecker extends Visitor<Void> {
     private Graph<String> classHierarchy;
-    ExpressionTypeChecker expressionTypeChecker;
+    private ExpressionTypeChecker expressionTypeChecker;
+    private ClassDeclaration currentClass;
+    private MethodDeclaration currentMethod;
 
     public TypeChecker(Graph<String> classHierarchy){
         this.classHierarchy = classHierarchy;
@@ -34,13 +40,46 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(Program program) {
-        //todo
+        // Not complete!
+        for (ClassDeclaration classDeclaration : program.getClasses()) {
+            this.expressionTypeChecker.setCurrentClass(classDeclaration);
+            this.currentClass = classDeclaration;
+            classDeclaration.accept(this);
+        }
         return null;
     }
 
     @Override
     public Void visit(ClassDeclaration classDeclaration) {
-        //todo
+        // Not complete!
+        if (classDeclaration.getParentClassName() != null) {
+            this.expressionTypeChecker.checkNodeType(classDeclaration, new ClassType(classDeclaration.getParentClassName()));
+            if (classDeclaration.getClassName().getName().equals("Main")) {
+                MainClassCantInherit exception = new MainClassCantInherit(classDeclaration.getLine());
+                classDeclaration.addError(exception);
+            }
+            if (classDeclaration.getParentClassName().getName().equals("Main")) {
+                CannotExtendFromMainClass exception = new CannotExtendFromMainClass(classDeclaration.getLine());
+                classDeclaration.addError(exception);
+            }
+        }
+        for (FieldDeclaration fieldDeclaration : classDeclaration.getFields()) {
+            fieldDeclaration.accept(this);
+        }
+        if (classDeclaration.getConstructor() != null) {
+            if (classDeclaration.getClassName().getName() == "Main") {
+                NoConstructorInMainClass exception = new NoConstructorInMainClass(classDeclaration);
+                classDeclaration.addError(exception);
+            }
+            this.expressionTypeChecker.setCurrentMethod(classDeclaration.getConstructor());
+            this.currentMethod = classDeclaration.getConstructor();
+            classDeclaration.getConstructor().accept(this);
+        }
+        for (MethodDeclaration methodDeclaration : classDeclaration.getMethods()) {
+            this.expressionTypeChecker.setCurrentMethod(methodDeclaration);
+            this.currentMethod = methodDeclaration;
+            methodDeclaration.accept(this);
+        }
         return null;
     }
 

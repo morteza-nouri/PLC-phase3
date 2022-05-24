@@ -2,6 +2,7 @@
 
 package main;
 
+import main.visitor.typeChecker.TypeChecker;
 import main.visitor.utils.ASTTreePrinter;
 import main.visitor.utils.ErrorReporter;
 import parsers.*;
@@ -22,9 +23,16 @@ public class SimpleLOOPCompiler {
 
         NameAnalyzer nameAnalyzer = new NameAnalyzer(program);
         nameAnalyzer.analyze();
-        int numberOfErrors = program.accept(errorReporter);
-        if(numberOfErrors == 0)
+        int numberOfNameErrors = program.accept(errorReporter);
+//        if(numberOfNameErrors == 0)
+//            program.accept(astTreePrinter);
+
+        TypeChecker typeChecker = new TypeChecker(nameAnalyzer.getClassHierarchy());
+        program.accept(typeChecker);
+        int numberOfTypeErrors = program.accept(errorReporter);
+        if (numberOfTypeErrors == 0)
             program.accept(astTreePrinter);
+
 
     }
 }
