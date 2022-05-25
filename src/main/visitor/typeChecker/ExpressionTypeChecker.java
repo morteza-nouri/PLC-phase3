@@ -28,6 +28,7 @@ import main.symbolTable.items.LocalVariableSymbolTableItem;
 import main.symbolTable.items.MethodSymbolTableItem;
 import main.symbolTable.items.SymbolTableItem;
 import main.symbolTable.utils.graph.Graph;
+import main.util.ArgPair;
 import main.visitor.Visitor;
 
 import java.util.ArrayList;
@@ -95,7 +96,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     }
 
     public void checkNodeType(Node node, Type type) {
-    // Not complete! --> maybe develop for other types too! Fptr and ?
         if (type instanceof ClassType) {
             String className = ((ClassType) type).getClassName().getName();
             if (!this.classHierarchy.doesGraphContainNode(className)) {
@@ -103,7 +103,15 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 node.addError(exception);
             }
         }
+        else if (type instanceof FptrType) {
+            Type returnType = ((FptrType) type).getReturnType();
+            ArrayList<Type> argTypes = ((FptrType) type).getArgumentsTypes();
+            this.checkNodeType(node, returnType);
+            for (Type argType : argTypes)
+                this.checkNodeType(node, argType);
+        }
     }
+
 
     // Change alot
     @Override
@@ -253,7 +261,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     @Override
     public Type visit(Identifier identifier) {
-        // Not complete
         try {
             ClassSymbolTableItem classSTI = (ClassSymbolTableItem) SymbolTable.root
                     .getItem(ClassSymbolTableItem.START_KEY + this.currentClass.getClassName().getName(), true);
@@ -263,13 +270,12 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             SymbolTable methodST = methodSTI.getMethodSymbolTable();
             LocalVariableSymbolTableItem localVarSTI = (LocalVariableSymbolTableItem) methodST
                     .getItem(LocalVariableSymbolTableItem.START_KEY + identifier.getName(), true);
-
+            return localVarSTI.getType();
         } catch (ItemNotFoundException e) {
             VarNotDeclared exception = new VarNotDeclared(identifier.getLine(), identifier.getName());
             identifier.addError(exception);
             return new NoType();
         }
-        return null;
     }
 
     @Override
