@@ -282,7 +282,25 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     @Override
     public Type visit(ArrayAccessByIndex arrayAccessByIndex) {
         //Todo
-        return null;
+        Type instanceType = arrayAccessByIndex.getInstance().accept(this);
+        boolean prevSeenNoneLvalue = this.seenNoneLvalue;
+        Type indexType = arrayAccessByIndex.getIndex().accept(this);
+        this.seenNoneLvalue = prevSeenNoneLvalue;
+        boolean indexErrored = false;
+        
+        if(!(instanceType instanceof ArrayType)) {
+            AccessByIndexOnNoneArray exception = new AccessByIndexOnNoneArray(arrayAccessByIndex.getLine());
+            arrayAccessByIndex.addError(exception);
+            indexErrored = true;
+        }
+
+        if(!(indexType instanceof NoType || indexType instanceof IntType)) {
+            ArrayIndexNotInt exception = new ArrayIndexNotInt(arrayAccessByIndex.getLine());
+            arrayAccessByIndex.addError(exception);
+            indexErrored = true;
+        }
+
+        return new NoType();
     }
 
     @Override
