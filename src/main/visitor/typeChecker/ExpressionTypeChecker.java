@@ -40,6 +40,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     private MethodDeclaration currentMethod;
     private boolean seenNoneLvalue = false;
     public boolean is_lval = true;
+    private boolean isInMethodCallStatement = false;
 
     public ExpressionTypeChecker(Graph<String> classHierarchy) {
         this.classHierarchy = classHierarchy;
@@ -257,7 +258,60 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     @Override
     public Type visit(MethodCall methodCall) {
         //Todo
-        return null;
+        boolean containsError = false;
+        boolean prevInFunctionCallStmt = isInMethodCallStatement;
+        ArrayList<Type> methodCallArgsType = new ArrayList<>();
+
+        isInMethodCallStatement = false;
+        Type instanceType = methodCall.getInstance().accept(this);
+
+        for (Expression expression : methodCall.getArgs()) {
+            Type type = expression.accept(this);
+            methodCallArgsType.add(type);
+        }
+        isInMethodCallStatement = prevInFunctionCallStmt;
+
+        if(instanceType instanceof NoType)
+            return new NoType();
+
+        if (!(instanceType instanceof FptrType )){
+            CallOnNoneCallable exception = new CallOnNoneCallable(methodCall.getLine());
+            methodCall.addError(exception);
+            return new NoType();
+        }
+
+        FptrType fptrType = (FptrType) instanceType;
+        ArrayList<Type> fptrArgsType = fptrType.getArgumentsTypes();
+        if (fptrType.getReturnType() instanceof VoidType && !isInMethodCallStatement){
+            containsError = true;
+            CantUseValueOfVoidMethod exception = new CantUseValueOfVoidMethod(methodCall.getLine());
+            methodCall.addError(exception);
+        }
+        isInMethodCallStatement = false;
+        // If args of fptr and method call is not the same then print error.
+        if (methodCallArgsType.size() != fptrArgsType.size()) {
+            containsError = true;
+            MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
+            methodCall.addError(exception);
+        }
+
+        else if (fptrArgsType.size() != 0) {
+            for(int i = 0; i < fptrArgsType.size(); i += 1){
+                if (!isSameType(fptrArgsType.get(i), methodCallArgsType.get(i))) {
+                    containsError = true;
+                    MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
+                    methodCall.addError(exception);
+
+                    // Don't check any other errors if you found one!
+                    break;
+                }
+            }
+        }
+
+        if (containsError)
+            return new NoType();
+        else
+            return fptrType.getReturnType();
     }
 
     @Override
@@ -281,13 +335,13 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     @Override
     public Type visit(ArrayAccessByIndex arrayAccessByIndex) {
-        //Todo
+        //Todo: not done yet!
         Type instanceType = arrayAccessByIndex.getInstance().accept(this);
         boolean prevSeenNoneLvalue = this.seenNoneLvalue;
         Type indexType = arrayAccessByIndex.getIndex().accept(this);
         this.seenNoneLvalue = prevSeenNoneLvalue;
         boolean indexErrored = false;
-        
+
         if(!(instanceType instanceof ArrayType)) {
             AccessByIndexOnNoneArray exception = new AccessByIndexOnNoneArray(arrayAccessByIndex.getLine());
             arrayAccessByIndex.addError(exception);
