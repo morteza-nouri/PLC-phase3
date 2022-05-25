@@ -52,6 +52,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     public void setCurrentMethod(MethodDeclaration methodDeclaration) {
         this.currentMethod = methodDeclaration;
     }
+    public void setIsInMethodCallStatement(boolean isInMethodCall) {
+        this.isInMethodCallStatement = isInMethodCall;
+    }
     public boolean isSameType(ArrayList<Type> firstTypes, ArrayList<Type> secondTypes) {
         if (firstTypes.size() != secondTypes.size())
             return false;

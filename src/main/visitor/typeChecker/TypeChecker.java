@@ -17,6 +17,7 @@ import main.ast.nodes.statement.set.*;
 import main.ast.types.NoType;
 import main.ast.types.NullType;
 import main.ast.types.Type;
+import main.ast.types.array.ArrayType;
 import main.ast.types.primitives.BoolType;
 import main.ast.types.primitives.ClassType;
 import main.ast.types.primitives.IntType;
@@ -26,7 +27,6 @@ import main.symbolTable.utils.graph.Graph;
 import main.visitor.*;
 import main.util.ArgPair;
 
-import javax.lang.model.type.ArrayType;
 import javax.swing.plaf.nimbus.State;
 
 public class TypeChecker extends Visitor<Void> {
@@ -163,7 +163,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(ConditionalStmt conditionalStmt) {
         Type condType = conditionalStmt.getCondition().accept(this.expressionTypeChecker);
-        if (!(condType instanceof BoolType) || condType instanceof NoType) {
+        if (!(condType instanceof BoolType || condType instanceof NoType)) {
             conditionalStmt.addError(new ConditionNotBool(conditionalStmt.getLine()));
         }
         if (conditionalStmt.getThenBody() != null)
@@ -179,7 +179,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(ElsifStmt elsifStmt) {
         Type condType = elsifStmt.getCondition().accept(this.expressionTypeChecker);
-        if (!(condType instanceof BoolType) || condType instanceof NoType) {
+        if (!(condType instanceof BoolType || condType instanceof NoType)) {
             elsifStmt.addError(new ConditionNotBool(elsifStmt.getLine()));
         }
         if (elsifStmt.getThenBody() != null)
@@ -213,25 +213,35 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(EachStmt eachStmt) {
-        //todo
+        // todo
         return null;
     }
 
     @Override
     public Void visit(SetDelete setDelete) {
-        //todo
+
         return null;
     }
 
     @Override
     public Void visit(SetMerge setMerge) {
-        //todo
+        // todo
         return null;
     }
 
     @Override
     public Void visit(SetAdd setAdd) {
-        //todo
+        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        setAdd.getElementArg().accept(this.expressionTypeChecker);
+        this.expressionTypeChecker.setIsInMethodCallStatement(false);
+        return null;
+    }
+
+    @Override
+    public Void visit(SetInclude setInclude) {
+        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        setInclude.getElementArg().accept(this.expressionTypeChecker);
+        this.expressionTypeChecker.setIsInMethodCallStatement(false);
         return null;
     }
 
