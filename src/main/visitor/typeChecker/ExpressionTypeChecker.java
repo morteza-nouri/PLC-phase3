@@ -5,6 +5,7 @@ import main.ast.nodes.declaration.classDec.ClassDeclaration;
 import main.ast.nodes.declaration.classDec.classMembersDec.MethodDeclaration;
 import main.ast.nodes.expression.*;
 import main.ast.nodes.expression.operators.BinaryOperator;
+import main.ast.nodes.expression.operators.TernaryOperator;
 import main.ast.nodes.expression.operators.UnaryOperator;
 import main.ast.nodes.expression.values.NullValue;
 import main.ast.nodes.expression.values.SetValue;
@@ -369,10 +370,23 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
         if(!isSameType(trueExprAcc,falseExprAcc))
         {
-
+            UnsupportedOperandType exception = new UnsupportedOperandType(condition.getLine(), TernaryOperator.ternary.name());
+            ternaryExpression.addError(exception);
+            return new NoType();
         }
 
-        return new NoType();
+        if(trueExprAcc instanceof BoolType)
+            return new BoolType();
+        else if(trueExprAcc instanceof IntType)
+            return new BoolType();
+        //Not sure about this
+        else if(trueExprAcc instanceof NoType && falseExprAcc instanceof NoType)
+            return new NoType();
+        else {
+            UnsupportedOperandType exception = new UnsupportedOperandType(ternaryExpression.getLine(), TernaryOperator.ternary.name());
+            ternaryExpression.addError(exception);
+            return new NoType();
+        }
     }
 
     @Override
