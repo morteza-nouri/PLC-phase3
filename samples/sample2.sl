@@ -4,29 +4,33 @@ class Student {
     private Course[10] courses
     private int course_num
     public initialize(int id) {
+        Course c
+        x.v()
+        x()
+        c.x()
         self.course_num = 0
         self.id = id
+        1 = id
+        if(x)
+            id = true++
     }
     public bool coursePassed(int id) {
     Course c
-    x()
-    x.each do |c|
+    self.courses.each do |c|
         if c.getId() == id
             if c.getGrade() > 10
                 return true
             else
-                return false
-    self.courses.each do |id|
-        return 0
-    return 1
+                return 1
+    return false
 }
 public void addCourse(int id, int grade) {
     Course newCourse
-    newCourse = Course.new(id)
+    newCourse = Course.new(id, grade)
     self.courses[self.course_num] = newCourse
     }
 }
-class Course < Main {
+class Course {
     private int grade
     private int id
     public initialize(int id, int grade) {
@@ -39,12 +43,8 @@ class Course < Main {
         return self.id
 }
 class Main {
-    private int[0] a
-    public Set <int> ss
     public initialize() {
         Student s
-        x = 1 + true
-        self.ss = Set.new((true,2,3))
         s = Student.new(810198433)
         s.addCourse(810110, 15)
         s.addCourse(810114, 9)

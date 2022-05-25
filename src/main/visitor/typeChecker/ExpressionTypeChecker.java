@@ -24,13 +24,11 @@ import main.ast.types.set.SetType;
 import main.compileError.typeError.*;
 import main.symbolTable.SymbolTable;
 import main.symbolTable.exceptions.ItemNotFoundException;
-import main.symbolTable.items.ClassSymbolTableItem;
-import main.symbolTable.items.LocalVariableSymbolTableItem;
-import main.symbolTable.items.MethodSymbolTableItem;
-import main.symbolTable.items.SymbolTableItem;
+import main.symbolTable.items.*;
 import main.symbolTable.utils.graph.Graph;
 import main.util.ArgPair;
 import main.visitor.Visitor;
+import main.ast.nodes.declaration.classDec.classMembersDec.FieldDeclaration;
 
 import java.util.ArrayList;
 
@@ -63,6 +61,18 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 return false;
         }
         return true;
+    }
+
+    public boolean isLvalue(Expression expression) {
+        boolean prevIsCatchErrorsActive = Node.isCatchErrorsActive;
+        boolean prevSeenNoneLvalue = this.seenNoneLvalue;
+        Node.isCatchErrorsActive = false;
+        this.seenNoneLvalue = false;
+        expression.accept(this);
+        boolean isLvalue = !this.seenNoneLvalue;
+        this.seenNoneLvalue = prevSeenNoneLvalue;
+        Node.isCatchErrorsActive = prevIsCatchErrorsActive;
+        return isLvalue;
     }
 
     public boolean isSameType(Type first, Type second) {
@@ -101,6 +111,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     }
 
     public void checkNodeType(Node node, Type type) {
+
         if (type instanceof ClassType) {
             String className = ((ClassType) type).getClassName().getName();
             if (!this.classHierarchy.doesGraphContainNode(className)) {
@@ -121,145 +132,247 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     // Change alot
     @Override
     public Type visit(BinaryExpression binaryExpression) {
-        //Todo: Not Done
-        Expression left = binaryExpression.getFirstOperand();
-        Expression right = binaryExpression.getSecondOperand();
+        //Todo: Probably Done
+        if (binaryExpression == null)
+            return new NullType();
 
-        Type tl = left.accept(this);
-        Type tr = right.accept(this);
-        BinaryOperator operator =  binaryExpression.getBinaryOperator();
+        Expression left_exp = binaryExpression.getFirstOperand();
+        Expression right_exp = binaryExpression.getSecondOperand();
+        BinaryOperator binaryOperator = binaryExpression.getBinaryOperator();
+        Type t2 = right_exp.accept(this);
+        Type t1 = left_exp.accept(this);
 
-        if (operator.equals(BinaryOperator.and) || operator.equals(BinaryOperator.or)) {
-            if (tl instanceof BoolType && tr instanceof BoolType)
-                return new BoolType();
-
-            if ((tl instanceof NoType || tl instanceof BoolType) &&
-               (tr instanceof BoolType || tr instanceof NoType))
-                return new NoType();
+        if(t1 instanceof NoType && t2 instanceof NoType){
+            is_lval = false;
+            return new NoType();
         }
 
-        else if(operator.equals(BinaryOperator.eq)){
-            if(!isSameType(tl,tr)){
-                UnsupportedOperandType exception = new UnsupportedOperandType(right.getLine(), operator.name());
-                binaryExpression.addError(exception);
+        // operator add   sub  mult  div   mod
+        if (binaryOperator.equals(BinaryOperator.add) || binaryOperator.equals(BinaryOperator.sub) ||
+                binaryOperator.equals(BinaryOperator.mult) || binaryOperator.equals(BinaryOperator.div)
+                || binaryOperator.equals(BinaryOperator.lt) ||
+                binaryOperator.equals(BinaryOperator.gt)) {
+            if (!(t1 instanceof IntType || t1 instanceof NoType) ||
+                    !(t2 instanceof IntType || t2 instanceof NoType)) {
+                binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                is_lval = false;
+                return new NoType();
+
+            }
+        }
+
+        // operator and or
+        else if (binaryOperator.equals(BinaryOperator.and) ||  binaryOperator.equals(BinaryOperator.or)) {
+            if (!(t1 instanceof BoolType || t1 instanceof NoType) ||
+                    !(t2 instanceof BoolType || t2 instanceof NoType)) {
+                binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                is_lval = false;
+                return new NoType();
+
+            }
+        }
+
+        // op == < >
+        else if (binaryOperator.equals(BinaryOperator.eq) || binaryOperator.equals(BinaryOperator.gt) || binaryOperator.equals(BinaryOperator.lt)) {
+            if (t1 instanceof ArrayType || t2 instanceof ArrayType) {
+                binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                is_lval = false;
                 return new NoType();
             }
-            else {
-                if(tl instanceof NoType || tr instanceof NoType)
+            else if (t1 instanceof ClassType || t2 instanceof ClassType){
+                if(!t1.toString().equals(t2.toString()) && !(t1 instanceof NullType) && !(t2 instanceof NullType)){
+                    binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                    is_lval = false;
                     return new NoType();
-                else
-                    return new BoolType();
+                }
+            }
+            else if ((t1 instanceof FptrType || t2 instanceof FptrType)){
+                if((!isFirstSubTypeOfSecond(t1, t2) || !isFirstSubTypeOfSecond(t2, t1))
+                        &&!(t1 instanceof NullType) && !(t2 instanceof NullType)){
+                    binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                    is_lval = false;
+                    return new NoType();
+                }
+            }
+            else if(!t1.toString().equals(t2.toString()) && !(t1 instanceof NoType || t2 instanceof NoType)){
+                binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                is_lval = false;
+                return new NoType();
+            }
+        }
+        else if(binaryOperator.equals(BinaryOperator.assign)){
+            if(!is_lval){
+                binaryExpression.addError(new LeftSideNotLvalue(binaryExpression.getLine()));
+                return new NoType();
+            }
+            if(!isFirstSubTypeOfSecond(t2, t1)){
+                binaryExpression.addError(new UnsupportedOperandType(binaryExpression.getLine(), binaryOperator.toString()));
+                is_lval = false;
+                return new NoType();
             }
         }
 
-        else if(operator.equals(BinaryOperator.gt) || operator.equals(BinaryOperator.lt)){
-            if (tl instanceof IntType && tr instanceof IntType)
-                return new BoolType();
-
-            if ((tl instanceof NoType || tl instanceof IntType) &&
-                    (tr instanceof IntType || tr instanceof NoType))
-                return new NoType();
+        if(t1 instanceof NoType || t2 instanceof NoType){
+            is_lval = false;
+            return new NoType();
         }
 
-        else { // + - / *
-            if (tl instanceof IntType && tr instanceof IntType)
-                return new IntType();
-
-            if ((tl instanceof NoType || tl instanceof IntType) &&
-                    (tr instanceof IntType || tr instanceof NoType))
-                return new NoType();
+        if (binaryOperator.equals(BinaryOperator.add) || binaryOperator.equals(BinaryOperator.sub) ||
+                binaryOperator.equals(BinaryOperator.mult) || binaryOperator.equals(BinaryOperator.div)) {
+            is_lval = false;
+            return new IntType();
         }
 
-        UnsupportedOperandType exception = new UnsupportedOperandType(left.getLine(), operator.name());
-        left.addError(exception);
+        if (binaryOperator.equals(BinaryOperator.lt) || binaryOperator.equals(BinaryOperator.gt)) {
+            is_lval = false;
+            return new BoolType();
+        }
+
+        // operator and or
+        if (binaryOperator.equals(BinaryOperator.and) ||  binaryOperator.equals(BinaryOperator.or)) {
+            is_lval = false;
+            return new BoolType();
+        }
+
+        // op ==
+        if (binaryOperator.equals(BinaryOperator.eq)) {
+            is_lval = false;
+            return new BoolType();
+        }
+
+        if(binaryOperator.equals(BinaryOperator.assign)){
+            is_lval = false;
+            return t2;
+        }
+
         return new NoType();
+
+    }
+
+    public boolean isFirstSubTypeOfSecondMultiple(ArrayList<Type> first, ArrayList<Type> second) {
+        if(first.size() != second.size())
+            return false;
+        for(int i = 0; i < first.size(); i++) {
+            if(!isFirstSubTypeOfSecond(first.get(i), second.get(i)))
+                return false;
+        }
+        return true;
+    }
+
+    public boolean isFirstSubTypeOfSecond(Type first, Type second) {
+        if(first instanceof NoType)
+            return true;
+        else if(first instanceof IntType || first instanceof BoolType)
+            return first.toString().equals(second.toString());
+        else if(first instanceof NullType)
+            return second instanceof NullType || second instanceof FptrType || second instanceof ClassType;
+        else if(first instanceof ClassType) {
+            if(!(second instanceof ClassType))
+                return false;
+            return this.classHierarchy.isSecondNodeAncestorOf(((ClassType) first).getClassName().getName(), ((ClassType) second).getClassName().getName());
+        }
+        else if(first instanceof FptrType) {
+            if(!(second instanceof FptrType))
+                return false;
+            Type firstRetType = ((FptrType) first).getReturnType();
+            Type secondRetType = ((FptrType) second).getReturnType();
+            if(!isFirstSubTypeOfSecond(firstRetType, secondRetType))
+                return false;
+            ArrayList<Type> firstArgsTypes = ((FptrType) first).getArgumentsTypes();
+            ArrayList<Type> secondArgsTypes = ((FptrType) second).getArgumentsTypes();
+            return isFirstSubTypeOfSecondMultiple(secondArgsTypes, firstArgsTypes);
+        }
+        return false;
     }
 
     @Override
     public Type visit(NewClassInstance newClassInstance) {
-        //todo
-        is_lval = false;
-        boolean t;
-        String class_name = newClassInstance.getClassType().getClassName().getName();
 
-        try {
-            ClassSymbolTableItem currentClass = (ClassSymbolTableItem) SymbolTable.root.getItem(ClassSymbolTableItem.START_KEY + class_name, true);
-
+        //todo: done
+        this.seenNoneLvalue = true;
+        String className = newClassInstance.getClassType().getClassName().getName();
+        ArrayList<Type> newInstanceTypes = new ArrayList<>();
+        for(Expression expression : newClassInstance.getArgs())
+            newInstanceTypes.add(expression.accept(this));
+        if(this.classHierarchy.doesGraphContainNode(className)) {
             try {
-                MethodSymbolTableItem methodCallSymTable = (MethodSymbolTableItem) currentClass.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + class_name, true);
-                ArrayList<Expression> params = newClassInstance.getArgs();
-                ArrayList<Type> paramsTypes = new ArrayList<>();
-                for(Expression actualParam : params){
-                    t = is_lval;
-                    is_lval = true;
-                    Type type = actualParam.accept(this);
-                    is_lval = t;
-                    paramsTypes.add(type);
+                ClassSymbolTableItem classSymbolTableItem = (ClassSymbolTableItem) SymbolTable.root.getItem(ClassSymbolTableItem.START_KEY + className, true);
+                MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTableItem.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + "initialize", true);
+                ArrayList<Type> constructorActualTypes = methodSymbolTableItem.getArgTypes();
+                if(this.isFirstSubTypeOfSecondMultiple(newInstanceTypes, constructorActualTypes)) {
+                    return newClassInstance.getClassType();
                 }
-                ArrayList<Type> formalParamsTypes = methodCallSymTable.getArgTypes();
-
-                // Implement later
-//                if (!areParamTypeCorrect(formalParamsTypes,paramsTypes)){
-//                    newClassInstance.addError(new ConstructorArgsNotMatchDefinition(newClassInstance));
-//                }
-
-            }
-            catch (ItemNotFoundException methodNotFound) {
-                ArrayList<Expression> params = newClassInstance.getArgs();
-                if(!params.isEmpty()) {
-                    newClassInstance.addError(new ConstructorArgsNotMatchDefinition(newClassInstance));
-                    for(Expression actualParam : params){
-                        t = is_lval;
-                        is_lval = true;
-                        actualParam.accept(this);
-                        is_lval = t;
-                    }
+                else {
+                    ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
+                    newClassInstance.addError(exception);
                     return new NoType();
                 }
+            } catch (ItemNotFoundException ignored) {
+                if(newInstanceTypes.size() != 0) {
+                    ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
+                    newClassInstance.addError(exception);
+                    return new NoType();
+                }
+                else {
+                    return newClassInstance.getClassType();
+                }
             }
-        } catch (ItemNotFoundException classNotFound) {
-            ClassNotDeclared cnd = new ClassNotDeclared(newClassInstance.getLine(), class_name);
-            newClassInstance.addError(cnd);
+        }
+        else {
+            ClassNotDeclared exception = new ClassNotDeclared(newClassInstance.getLine(), className);
+            newClassInstance.addError(exception);
             return new NoType();
         }
-        return newClassInstance.getClassType();
     }
 
     // Change alot
     @Override
     public Type visit(UnaryExpression unaryExpression) {
+
         //Todo
-        Expression uExpr = unaryExpression.getOperand();
-        Type ut = uExpr.accept(this);
+        this.seenNoneLvalue = true;
+        Type operandType = unaryExpression.getOperand().accept(this);
         UnaryOperator operator = unaryExpression.getOperator();
-
-        if(operator.equals(UnaryOperator.not)) {
-            if(ut instanceof BoolType)
-                return new BoolType();
-            if(ut instanceof NoType)
+        if(operator == UnaryOperator.not) {
+            if(operandType instanceof NoType)
                 return new NoType();
-            else {
-                UnsupportedOperandType exception = new UnsupportedOperandType(uExpr.getLine(), operator.name());
-                uExpr.addError(exception);
-                return new NoType();
-            }
+            if(operandType instanceof BoolType)
+                return operandType;
+            UnsupportedOperandType exception = new UnsupportedOperandType(unaryExpression.getLine(), operator.name());
+            unaryExpression.addError(exception);
+            return new NoType();
         }
-
-        else { //-
-            if (ut instanceof IntType)
-                return new IntType();
-            if(ut instanceof NoType)
+        else if(operator == UnaryOperator.minus) {
+            if(operandType instanceof NoType)
                 return new NoType();
-            else{
-                UnsupportedOperandType exception = new UnsupportedOperandType(uExpr.getLine(), operator.name());
-                uExpr.addError(exception);
+            if(operandType instanceof IntType)
+                return operandType;
+            UnsupportedOperandType exception = new UnsupportedOperandType(unaryExpression.getLine(), operator.name());
+            unaryExpression.addError(exception);
+            return new NoType();
+        }
+        else {
+            boolean isOperandLvalue = this.isLvalue(unaryExpression.getOperand());
+            if(!isOperandLvalue) {
+                IncDecOperandNotLvalue exception = new IncDecOperandNotLvalue(unaryExpression.getLine(), operator.name());
+                unaryExpression.addError(exception);
+            }
+            if(operandType instanceof NoType)
+                return new NoType();
+            if(operandType instanceof IntType) {
+                if(isOperandLvalue)
+                    return operandType;
                 return new NoType();
             }
+            UnsupportedOperandType exception = new UnsupportedOperandType(unaryExpression.getLine(), operator.name());
+            unaryExpression.addError(exception);
+            return new NoType();
         }
     }
 
     @Override
     public Type visit(MethodCall methodCall) {
+
         //Todo
         boolean containsError = false;
         boolean prevInFunctionCallStmt = isInMethodCallStatement;
@@ -267,7 +380,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
         isInMethodCallStatement = false;
         Type instanceType = methodCall.getInstance().accept(this);
-
         for (Expression expression : methodCall.getArgs()) {
             Type type = expression.accept(this);
             methodCallArgsType.add(type);
@@ -338,37 +450,71 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     @Override
     public Type visit(ArrayAccessByIndex arrayAccessByIndex) {
-        //Todo: not done yet!
+        //Todo: maybe done
+
         Type instanceType = arrayAccessByIndex.getInstance().accept(this);
         boolean prevSeenNoneLvalue = this.seenNoneLvalue;
         Type indexType = arrayAccessByIndex.getIndex().accept(this);
         this.seenNoneLvalue = prevSeenNoneLvalue;
         boolean indexErrored = false;
-
-        if(!(instanceType instanceof ArrayType)) {
-            AccessByIndexOnNoneArray exception = new AccessByIndexOnNoneArray(arrayAccessByIndex.getLine());
-            arrayAccessByIndex.addError(exception);
-            indexErrored = true;
-        }
-
         if(!(indexType instanceof NoType || indexType instanceof IntType)) {
             ArrayIndexNotInt exception = new ArrayIndexNotInt(arrayAccessByIndex.getLine());
             arrayAccessByIndex.addError(exception);
             indexErrored = true;
         }
-
+        if(instanceType instanceof ArrayType) {
+            ArrayList<Type> types = new ArrayList<>();
+            if(indexErrored)
+                return new NoType();
+        }
+        else if(!(instanceType instanceof NoType)) {
+            AccessByIndexOnNoneArray exception = new AccessByIndexOnNoneArray(arrayAccessByIndex.getLine());
+            arrayAccessByIndex.addError(exception);
+        }
         return new NoType();
     }
 
     @Override
     public Type visit(ObjectMemberAccess objectMemberAccess) {
         //Todo
-        Expression objInst = objectMemberAccess.getInstance();
-        Identifier objMemAccessName = objectMemberAccess.getMemberName();
-        Type t1 = objInst.accept(this);
+
+        Expression e = objectMemberAccess.getInstance();
+        Identifier i = objectMemberAccess.getMemberName();
+        Type t1 = e.accept(this);
         if(!(t1 instanceof ClassType)){
             objectMemberAccess.addError(new AccessOnNonClass(objectMemberAccess.getLine()));
             return new NoType();
+        }
+        if(t1 instanceof ClassType){
+            try{
+                ClassSymbolTableItem currentClass = (ClassSymbolTableItem) SymbolTable.root
+                        .getItem(ClassSymbolTableItem.START_KEY + ((ClassType) t1).getClassName().getName(), true);
+                ArrayList<FieldDeclaration> fieldDeclarations = currentClass.getClassDeclaration().getFields();
+                ArrayList<MethodDeclaration> methodDeclarations = currentClass.getClassDeclaration().getMethods();
+
+                try {
+                    FieldSymbolTableItem calledField = (FieldSymbolTableItem) currentClass.getClassSymbolTable()
+                            .getItem(FieldSymbolTableItem.START_KEY + i.getName(), true);
+                    return calledField.getType();
+                }catch (ItemNotFoundException MethodNotFound) {
+                    try {
+                        MethodSymbolTableItem calledMethod = (MethodSymbolTableItem) currentClass.getClassSymbolTable()
+                                .getItem(MethodSymbolTableItem.START_KEY + i.getName(), true);
+                        is_lval = false;
+                        return new FptrType(calledMethod.getArgTypes(), calledMethod.getReturnType());
+
+                    }catch (ItemNotFoundException MemberNotFound){
+                        if(i.getName().equals(currentClass.getName())){
+                            return new FptrType(new ArrayList<>(), new NullType());
+                        }
+                        objectMemberAccess.addError(new MemberNotAvailableInClass(objectMemberAccess.getLine(),
+                                i.getName(), currentClass.getClassDeclaration().getClassName().getName()));
+                        return new NoType();
+                    }
+                }
+            }catch (ItemNotFoundException classNotFound){
+
+            }
         }
 
         return new NoType();
