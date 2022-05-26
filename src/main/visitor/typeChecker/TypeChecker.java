@@ -131,6 +131,7 @@ public class TypeChecker extends Visitor<Void> {
         for (Statement statement : methodDeclaration.getBody()) {
             if (this.hasReturn) {
                 statement.addError(new UnreachableStatements(statement));
+                return null;
             }
             statement.accept(this);
         }
@@ -175,8 +176,10 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(BlockStmt blockStmt) {
         for (Statement statement : blockStmt.getStatements()) {
-            if (this.hasReturn)
+            if (this.hasReturn) {
                 statement.addError(new UnreachableStatements(statement));
+                return null;
+            }
             statement.accept(this);
         }
         return null;
@@ -252,8 +255,9 @@ public class TypeChecker extends Visitor<Void> {
             returnStmt.addError(new VoidMethodHasReturn(this.currentMethod));
             return null;
         }
-        if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
-            returnStmt.addError(new ReturnValueNotMatchMethodReturnType(returnStmt));
+        if (!(retType instanceof NullType && methodRetType instanceof VoidType))
+            if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
+                returnStmt.addError(new ReturnValueNotMatchMethodReturnType(returnStmt));
         return null;
     }
 
