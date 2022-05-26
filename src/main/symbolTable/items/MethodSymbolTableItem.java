@@ -13,6 +13,7 @@ public class MethodSymbolTableItem extends SymbolTableItem {
     private MethodDeclaration methodDeclaration;
     private Type returnType;
     private ArrayList<Type> argTypes = new ArrayList<>();
+    public int non_default_args = 0;
     private SymbolTable methodSymbolTable;
 
     public MethodSymbolTableItem(MethodDeclaration methodDeclaration) {
@@ -20,6 +21,10 @@ public class MethodSymbolTableItem extends SymbolTableItem {
         this.returnType = methodDeclaration.getReturnType();
         for(ArgPair argPair : methodDeclaration.getArgs()) {
             this.argTypes.add(argPair.getVariableDeclaration().getType());
+
+            if (argPair.getDefaultValue() != null) {
+                non_default_args += 1;
+            }
         }
         this.name = methodDeclaration.getMethodName().getName();
     }

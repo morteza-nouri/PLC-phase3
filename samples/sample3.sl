@@ -10,7 +10,7 @@ class A {
         gl = b
     }
 
-    public void apply(int arg) {
+    public void apply(int arg, int f = 2) {
         self.x = arg;
         if(arg > 3) {
             arg = 0;
