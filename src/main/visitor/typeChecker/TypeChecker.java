@@ -28,6 +28,8 @@ import main.visitor.*;
 import main.util.ArgPair;
 
 import javax.swing.plaf.nimbus.State;
+import java.util.ArrayList;
+import java.util.Set;
 
 public class TypeChecker extends Visitor<Void> {
     private Graph<String> classHierarchy;
@@ -61,7 +63,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(ClassDeclaration classDeclaration) {
         if (classDeclaration.getParentClassName() != null) {
-            this.expressionTypeChecker.checkNodeType(classDeclaration, new ClassType(classDeclaration.getParentClassName()));
+            this.expressionTypeChecker.checkForUndefinedClasses(classDeclaration, new ClassType(classDeclaration.getParentClassName()));
             if (classDeclaration.getClassName().getName().equals("Main")) {
                 MainClassCantInherit exception = new MainClassCantInherit(classDeclaration.getLine());
                 classDeclaration.addError(exception);
@@ -106,8 +108,18 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(MethodDeclaration methodDeclaration) {
         boolean hasReturn = false;
-        for (ArgPair argPair : methodDeclaration.getArgs())
-            argPair.getVariableDeclaration().accept(this);
+        this.expressionTypeChecker.checkForUndefinedClasses(methodDeclaration, methodDeclaration.getReturnType());
+        for (ArgPair argPair : methodDeclaration.getArgs()) {
+            if (argPair.getDefaultValue() != null) {
+                Type valType = argPair.getDefaultValue().accept(this.expressionTypeChecker);
+                if (!this.expressionTypeChecker.isSameType(argPair.getVariableDeclaration().getType(), valType)) {
+                    UnsupportedOperandType exception = new UnsupportedOperandType(argPair.getVariableDeclaration().getLine(), BinaryOperator.assign.name());
+                    argPair.getVariableDeclaration().addError(exception);
+                }
+            }
+            else
+                argPair.getVariableDeclaration().accept(this);
+        }
 
         for (VariableDeclaration variableDeclaration : methodDeclaration.getLocalVars())
             variableDeclaration.accept(this);
@@ -133,7 +145,7 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(VariableDeclaration varDeclaration) {
-        this.expressionTypeChecker.checkNodeType(varDeclaration, varDeclaration.getType());
+        this.expressionTypeChecker.checkForUndefinedClasses(varDeclaration, varDeclaration.getType());
         return null;
     }
 
@@ -141,7 +153,10 @@ public class TypeChecker extends Visitor<Void> {
     public Void visit(AssignmentStmt assignmentStmt) {
         Type lType = assignmentStmt.getlValue().accept(this.expressionTypeChecker);
         Type rType = assignmentStmt.getrValue().accept(this.expressionTypeChecker);
-        // lvalue not checked yet !
+        if (!this.expressionTypeChecker.isLvalue(assignmentStmt.getlValue())) {
+            assignmentStmt.addError(new LeftSideNotLvalue(assignmentStmt.getLine()));
+        }
+
         if (lType instanceof NoType)
             return null;
         if (!this.expressionTypeChecker.isSameType(rType, lType)) {
@@ -189,14 +204,16 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(MethodCallStmt methodCallStmt) {
-        // todo
+        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        methodCallStmt.getMethodCall().accept(this.expressionTypeChecker);
+        this.expressionTypeChecker.setIsInMethodCallStatement(false);
         return null;
     }
 
     @Override
     public Void visit(PrintStmt print) {
         Type argType = print.getArg().accept(expressionTypeChecker);
-        if(!(argType instanceof IntType || argType instanceof BoolType || argType instanceof NoType)) {
+        if(!(argType instanceof IntType || argType instanceof BoolType || argType instanceof NoType || argType instanceof SetType)) {
             print.addError(new UnsupportedTypeForPrint(print.getLine()));
         }
         return null;
@@ -213,19 +230,27 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(EachStmt eachStmt) {
-        // todo
-        return null;
-    }
-
-    @Override
-    public Void visit(SetDelete setDelete) {
-
+        Type varType = eachStmt.getVariable().accept(this.expressionTypeChecker);
+       Type iterableType = eachStmt.getList().accept(this.expressionTypeChecker);
+        if (!(iterableType instanceof ArrayType || iterableType instanceof SetType || iterableType instanceof NoType)) {
+            EachCantIterateNoneArray exception = new EachCantIterateNoneArray(eachStmt.getLine());
+            eachStmt.addError(exception);
+        }
+        if (!this.expressionTypeChecker.isSameType(varType, iterableType)) {
+            EachVarNotMatchList exception = new EachVarNotMatchList(eachStmt);
+            eachStmt.addError(exception);
+        }
+        eachStmt.getBody().accept(this);
         return null;
     }
 
     @Override
     public Void visit(SetMerge setMerge) {
-        // todo
+        for (Expression expression : setMerge.getElementArgs()) {
+            Type argType = expression.accept(this.expressionTypeChecker);
+            if (!(argType instanceof SetType || argType instanceof IntType))
+                setMerge.addError(new MergeInputNotSet(setMerge.getLine()));
+        }
         return null;
     }
 

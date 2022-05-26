@@ -110,7 +110,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         return false;
     }
 
-    public void checkNodeType(Node node, Type type) {
+    public void checkForUndefinedClasses(Node node, Type type) {
 
         if (type instanceof ClassType) {
             String className = ((ClassType) type).getClassName().getName();
@@ -122,9 +122,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         else if (type instanceof FptrType) {
             Type returnType = ((FptrType) type).getReturnType();
             ArrayList<Type> argTypes = ((FptrType) type).getArgumentsTypes();
-            this.checkNodeType(node, returnType);
+            this.checkForUndefinedClasses(node, returnType);
             for (Type argType : argTypes)
-                this.checkNodeType(node, argType);
+                this.checkForUndefinedClasses(node, argType);
         }
     }
 
