@@ -255,8 +255,7 @@ public class TypeChecker extends Visitor<Void> {
             returnStmt.addError(new VoidMethodHasReturn(this.currentMethod));
             return null;
         }
-        if (!(retType instanceof NullType && methodRetType instanceof VoidType))
-            if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
+        if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
                 returnStmt.addError(new ReturnValueNotMatchMethodReturnType(returnStmt));
         return null;
     }
