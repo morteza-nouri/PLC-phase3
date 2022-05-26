@@ -21,6 +21,7 @@ import main.ast.types.array.ArrayType;
 import main.ast.types.primitives.BoolType;
 import main.ast.types.primitives.ClassType;
 import main.ast.types.primitives.IntType;
+import main.ast.types.primitives.VoidType;
 import main.ast.types.set.SetType;
 import main.compileError.typeError.*;
 import main.symbolTable.utils.graph.Graph;
@@ -129,11 +130,6 @@ public class TypeChecker extends Visitor<Void> {
                 hasReturn = true;
             statement.accept(this);
         }
-
-        if (!hasReturn && !(methodDeclaration.getReturnType() instanceof NullType) && !(this.currentClass.getClassName().getName().equals("Main"))) {
-            MissingReturnStatement exception = new MissingReturnStatement(methodDeclaration);
-            methodDeclaration.addError(exception);
-        }
         return null;
     }
 
@@ -235,10 +231,12 @@ public class TypeChecker extends Visitor<Void> {
         if (!(iterableType instanceof ArrayType || iterableType instanceof SetType || iterableType instanceof NoType)) {
             EachCantIterateNoneArray exception = new EachCantIterateNoneArray(eachStmt.getLine());
             eachStmt.addError(exception);
+            return null;
         }
         if (!this.expressionTypeChecker.isSameType(varType, iterableType)) {
             EachVarNotMatchList exception = new EachVarNotMatchList(eachStmt);
             eachStmt.addError(exception);
+            return null;
         }
         eachStmt.getBody().accept(this);
         return null;
