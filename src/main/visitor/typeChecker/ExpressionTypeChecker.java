@@ -110,7 +110,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         return false;
     }
 
-    public void checkForUndefinedClasses(Node node, Type type) {
+    public void checkNode(Node node, Type type) {
 
         if (type instanceof ClassType) {
             String className = ((ClassType) type).getClassName().getName();
@@ -119,12 +119,18 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 node.addError(exception);
             }
         }
+        else if (type instanceof ArrayType) {
+            for( Expression dimension : ((ArrayType) type).getDimensions())
+                if (((IntValue)dimension).getConstant() == 0)
+                    node.addError(new CannotHaveEmptyArray(node.getLine()));
+        }
+
         else if (type instanceof FptrType) {
             Type returnType = ((FptrType) type).getReturnType();
             ArrayList<Type> argTypes = ((FptrType) type).getArgumentsTypes();
-            this.checkForUndefinedClasses(node, returnType);
+            this.checkNode(node, returnType);
             for (Type argType : argTypes)
-                this.checkForUndefinedClasses(node, argType);
+                this.checkNode(node, argType);
         }
     }
 

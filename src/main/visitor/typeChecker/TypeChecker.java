@@ -64,7 +64,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(ClassDeclaration classDeclaration) {
         if (classDeclaration.getParentClassName() != null) {
-            this.expressionTypeChecker.checkForUndefinedClasses(classDeclaration, new ClassType(classDeclaration.getParentClassName()));
+            this.expressionTypeChecker.checkNode(classDeclaration, new ClassType(classDeclaration.getParentClassName()));
             if (classDeclaration.getClassName().getName().equals("Main")) {
                 MainClassCantInherit exception = new MainClassCantInherit(classDeclaration.getLine());
                 classDeclaration.addError(exception);
@@ -109,7 +109,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(MethodDeclaration methodDeclaration) {
         boolean hasReturn = false;
-        this.expressionTypeChecker.checkForUndefinedClasses(methodDeclaration, methodDeclaration.getReturnType());
+        this.expressionTypeChecker.checkNode(methodDeclaration, methodDeclaration.getReturnType());
         for (ArgPair argPair : methodDeclaration.getArgs()) {
             if (argPair.getDefaultValue() != null) {
                 Type valType = argPair.getDefaultValue().accept(this.expressionTypeChecker);
@@ -141,7 +141,7 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(VariableDeclaration varDeclaration) {
-        this.expressionTypeChecker.checkForUndefinedClasses(varDeclaration, varDeclaration.getType());
+        this.expressionTypeChecker.checkNode(varDeclaration, varDeclaration.getType());
         return null;
     }
 
