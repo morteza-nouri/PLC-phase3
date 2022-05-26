@@ -378,7 +378,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     @Override
     public Type visit(MethodCall methodCall) {
-
         //Todo
         boolean containsError = false;
         boolean prevInFunctionCallStmt = isInMethodCallStatement;
@@ -519,7 +518,8 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                     }
                 }
             }catch (ItemNotFoundException classNotFound){
-
+                objectMemberAccess.addError(new ClassNotDeclared(objectMemberAccess.getLine(),((ClassType) t1).getClassName().getName()));
+                return new NoType();
             }
         }
 
@@ -556,7 +556,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             return new NoType();
         }
 
-        return new NoType();
+        return new BoolType();
     }
 
     @Override
@@ -574,7 +574,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             return new NoType();
         }
 
-        return new NoType();
+        return new ArrayType();
     }
 
     @Override
