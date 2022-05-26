@@ -37,8 +37,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     private ClassDeclaration currentClass;
     private MethodDeclaration currentMethod;
     private boolean seenNoneLvalue = false;
-    public boolean is_lval = true;
     private boolean isInMethodCallStatement = false;
+
+    private String current_class;
 
     public ExpressionTypeChecker(Graph<String> classHierarchy) {
         this.classHierarchy = classHierarchy;
@@ -240,8 +241,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     }
 
     public boolean isFirstSubTypeOfSecondMultiple(ArrayList<Type> first, ArrayList<Type> second) {
-        if(first.size() != second.size())
-            return false;
         for(int i = 0; i < first.size(); i++) {
             if(!isFirstSubTypeOfSecond(first.get(i), second.get(i)))
                 return false;
@@ -289,6 +288,12 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 ClassSymbolTableItem classSymbolTableItem = (ClassSymbolTableItem) SymbolTable.root.getItem(ClassSymbolTableItem.START_KEY + className, true);
                 MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTableItem.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + "initialize", true);
                 ArrayList<Type> constructorActualTypes = methodSymbolTableItem.getArgTypes();
+                int non_default_args = methodSymbolTableItem.non_default_args;
+                if (newInstanceTypes.size() < non_default_args){
+                    ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
+                    newClassInstance.addError(exception);
+                    return new NoType();
+                }
                 if(this.isFirstSubTypeOfSecondMultiple(newInstanceTypes, constructorActualTypes)) {
                     return newClassInstance.getClassType();
                 }
@@ -372,7 +377,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         for (Expression expression : methodCall.getArgs()) {
             Type type = expression.accept(this);
             methodCallArgsType.add(type);
+
         }
+
         isInMethodCallStatement = prevInFunctionCallStmt;
 
         if(instanceType instanceof NoType)
@@ -392,6 +399,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             methodCall.addError(exception);
         }
         isInMethodCallStatement = false;
+
         // If args of fptr and method call is not the same then print error.
         if (methodCallArgsType.size() != fptrArgsType.size()) {
             containsError = true;
@@ -425,7 +433,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                     .getItem(ClassSymbolTableItem.START_KEY + this.currentClass.getClassName().getName(), true);
             SymbolTable classST = classSTI.getClassSymbolTable();
             MethodSymbolTableItem methodSTI = (MethodSymbolTableItem) classST
-                   .getItem(MethodSymbolTableItem.START_KEY + this.currentMethod.getMethodName().getName(), true);
+                    .getItem(MethodSymbolTableItem.START_KEY + this.currentMethod.getMethodName().getName(), true);
             SymbolTable methodST = methodSTI.getMethodSymbolTable();
             LocalVariableSymbolTableItem localVarSTI = (LocalVariableSymbolTableItem) methodST
                     .getItem(LocalVariableSymbolTableItem.START_KEY + identifier.getName(), true);
@@ -502,16 +510,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 }
             }
         }
-//        else if(instanceType instanceof ArrayType) {
-//            ArrayList<ListNameType> elementsTypes = ((ListType) instanceType).getElementsTypes();
-//            for(ListNameType elementType : elementsTypes) {
-//                if(elementType.getName().getName().equals(memberName))
-//                    return this.refineType(elementType.getType());
-//            }
-//            ListMemberNotFound exception = new ListMemberNotFound(objectMemberAccess.getLine(), memberName);
-//            objectMemberAccess.addError(exception);
-//            return new NoType();
-//        }
         else {
             AccessOnNonClass exception = new AccessOnNonClass(objectMemberAccess.getLine());
             objectMemberAccess.addError(exception);
@@ -600,7 +598,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             return new BoolType();
         else if(trueExprAcc instanceof IntType)
             return new BoolType();
-        //Not sure about this
+            //Not sure about this
         else if(trueExprAcc instanceof NoType && falseExprAcc instanceof NoType)
             return new NoType();
         else {
