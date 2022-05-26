@@ -28,6 +28,7 @@ import main.symbolTable.utils.graph.Graph;
 import main.visitor.*;
 import main.util.ArgPair;
 
+import javax.print.attribute.standard.NumberUp;
 import javax.swing.plaf.nimbus.State;
 import java.util.ArrayList;
 import java.util.Set;
@@ -37,7 +38,8 @@ public class TypeChecker extends Visitor<Void> {
     private ExpressionTypeChecker expressionTypeChecker;
     private ClassDeclaration currentClass;
     private MethodDeclaration currentMethod;
-    private boolean main_declared;
+    private boolean mainDeclared;
+    private boolean hasReturn = false;
 
     public TypeChecker(Graph<String> classHierarchy){
         this.classHierarchy = classHierarchy;
@@ -46,15 +48,15 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(Program program) {
-        this.main_declared = false;
+        this.mainDeclared = false;
         for (ClassDeclaration classDeclaration : program.getClasses()) {
             if (classDeclaration.getClassName().getName().equals("Main"))
-                this.main_declared = true;
+                this.mainDeclared = true;
             this.expressionTypeChecker.setCurrentClass(classDeclaration);
             this.currentClass = classDeclaration;
             classDeclaration.accept(this);
         }
-        if (!this.main_declared) {
+        if (!this.mainDeclared) {
             NoMainClass exception = new NoMainClass();
             program.addError(exception);
         }
@@ -96,6 +98,7 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(ConstructorDeclaration constructorDeclaration) {
+        constructorDeclaration.setReturnType(new NullType());
         if (this.currentClass.getClassName().getName().equals("Main")) {
             if (constructorDeclaration.getArgs().size() != 0) {
                 MainConstructorCantHaveArgs exception = new MainConstructorCantHaveArgs(constructorDeclaration.getLine());
@@ -108,7 +111,7 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(MethodDeclaration methodDeclaration) {
-        boolean hasReturn = false;
+        this.hasReturn = false;
         this.expressionTypeChecker.checkNode(methodDeclaration, methodDeclaration.getReturnType());
         for (ArgPair argPair : methodDeclaration.getArgs()) {
             if (argPair.getDefaultValue() != null) {
@@ -126,9 +129,15 @@ public class TypeChecker extends Visitor<Void> {
             variableDeclaration.accept(this);
 
         for (Statement statement : methodDeclaration.getBody()) {
-            if (statement instanceof ReturnStmt)
-                hasReturn = true;
+            if (this.hasReturn) {
+                statement.addError(new UnreachableStatements(statement));
+            }
             statement.accept(this);
+        }
+        if (!this.hasReturn && !(methodDeclaration.getReturnType() instanceof VoidType) &&
+                !(methodDeclaration.getReturnType() instanceof NullType)) {
+            MissingReturnStatement exception = new MissingReturnStatement(methodDeclaration);
+            methodDeclaration.addError(exception);
         }
         return null;
     }
@@ -166,6 +175,8 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(BlockStmt blockStmt) {
         for (Statement statement : blockStmt.getStatements()) {
+            if (this.hasReturn)
+                statement.addError(new UnreachableStatements(statement));
             statement.accept(this);
         }
         return null;
@@ -173,17 +184,34 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(ConditionalStmt conditionalStmt) {
+        boolean ifHasReturn, elifHasReturn = false, elseHasRetrun = false, hasReturnedBefore;
+        hasReturnedBefore = this.hasReturn;
         Type condType = conditionalStmt.getCondition().accept(this.expressionTypeChecker);
         if (!(condType instanceof BoolType || condType instanceof NoType)) {
             conditionalStmt.addError(new ConditionNotBool(conditionalStmt.getLine()));
         }
-        if (conditionalStmt.getThenBody() != null)
-            conditionalStmt.getThenBody().accept(this);
-        for (ElsifStmt elsifStmt : conditionalStmt.getElsif())
-            elsifStmt.accept(this);
-        if (conditionalStmt.getElseBody() != null)
-            conditionalStmt.getElseBody().accept(this);
 
+        if (conditionalStmt.getThenBody() != null) {
+            this.hasReturn = false;
+            conditionalStmt.getThenBody().accept(this);
+            ifHasReturn = this.hasReturn;
+        }
+        ifHasReturn = this.hasReturn;
+        for (ElsifStmt elsifStmt : conditionalStmt.getElsif()) {
+            this.hasReturn = false;
+            elsifStmt.accept(this);
+            elifHasReturn = this.hasReturn;
+        }
+        elifHasReturn = this.hasReturn;
+        if (conditionalStmt.getElseBody() != null) {
+            this.hasReturn = false;
+            conditionalStmt.getElseBody().accept(this);
+            elseHasRetrun = this.hasReturn;
+        }
+        if (hasReturnedBefore)
+            this.hasReturn = true;
+        else
+            this.hasReturn = ifHasReturn && elifHasReturn && elseHasRetrun;
         return null;
     }
 
@@ -217,8 +245,13 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(ReturnStmt returnStmt) {
+        this.hasReturn = true;
         Type retType = returnStmt.getReturnedExpr().accept(this.expressionTypeChecker);
         Type methodRetType = this.currentMethod.getReturnType();
+        if ( methodRetType instanceof VoidType && !(retType instanceof NullType)) {
+            returnStmt.addError(new VoidMethodHasReturn(this.currentMethod));
+            return null;
+        }
         if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
             returnStmt.addError(new ReturnValueNotMatchMethodReturnType(returnStmt));
         return null;
@@ -227,13 +260,13 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(EachStmt eachStmt) {
         Type varType = eachStmt.getVariable().accept(this.expressionTypeChecker);
-       Type iterableType = eachStmt.getList().accept(this.expressionTypeChecker);
+        Type iterableType = eachStmt.getList().accept(this.expressionTypeChecker);
         if (!(iterableType instanceof ArrayType || iterableType instanceof SetType || iterableType instanceof NoType)) {
             EachCantIterateNoneArray exception = new EachCantIterateNoneArray(eachStmt.getLine());
             eachStmt.addError(exception);
             return null;
         }
-        if (!this.expressionTypeChecker.isSameType(varType, iterableType)) {
+        if (!this.expressionTypeChecker.isSameType(varType, ((ArrayType)iterableType).getType())) {
             EachVarNotMatchList exception = new EachVarNotMatchList(eachStmt);
             eachStmt.addError(exception);
             return null;
