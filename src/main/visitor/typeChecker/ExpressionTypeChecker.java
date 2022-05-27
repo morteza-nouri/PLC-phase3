@@ -187,8 +187,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             if((firstType instanceof IntType) && (secondType instanceof IntType))
                 return new BoolType();
         }
-        if((operator == BinaryOperator.add) || (operator == BinaryOperator.sub) ||
-                (operator == BinaryOperator.mult) || (operator == BinaryOperator.div)) {
+        if((operator == BinaryOperator.add) || (operator == BinaryOperator.sub) || (operator == BinaryOperator.mult) || (operator == BinaryOperator.div)) {
             if(firstType instanceof NoType && secondType instanceof NoType)
                 return new NoType();
             else if((firstType instanceof NoType && !(secondType instanceof IntType)) ||
@@ -277,7 +276,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     @Override
     public Type visit(NewClassInstance newClassInstance) {
-
         //todo: done
         this.seenNoneLvalue = true;
         String className = newClassInstance.getClassType().getClassName().getName();
@@ -322,10 +320,8 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
     }
 
-    // Change alot
     @Override
     public Type visit(UnaryExpression unaryExpression) {
-
         //Todo
         this.seenNoneLvalue = true;
         Type operandType = unaryExpression.getOperand().accept(this);
@@ -402,8 +398,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             methodCall.addError(exception);
         }
         isInMethodCallStatement = false;
-
-        System.out.println(fptrType.non_default_args);
 
         if (methodCallArgsType.size() < fptrType.non_default_args || methodCallArgsType.size() > fptrArgsType.size()) {
             containsError = true;

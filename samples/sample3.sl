@@ -1,4 +1,5 @@
 int gl;
+int y;
 class B {
     private int k;
 }
@@ -38,5 +39,7 @@ class Main {
         x = instance.apply(3,4,5);
 
         instance.fp(2);
+
+        y.hey(1,2)
     }
 }
