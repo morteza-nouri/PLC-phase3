@@ -38,6 +38,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     private MethodDeclaration currentMethod;
     private boolean seenNoneLvalue = false;
     private boolean isInMethodCallStatement = false;
+    private String current_mehtod;
 
     private String current_class;
 
@@ -368,6 +369,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     @Override
     public Type visit(MethodCall methodCall) {
         //Todo
+
         boolean containsError = false;
         boolean prevInFunctionCallStmt = isInMethodCallStatement;
         ArrayList<Type> methodCallArgsType = new ArrayList<>();
@@ -400,8 +402,10 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
         isInMethodCallStatement = false;
 
+        int non_default_args = fptrArgsType.size();
+
         // If args of fptr and method call is not the same then print error.
-        if (methodCallArgsType.size() != fptrArgsType.size()) {
+        if (methodCallArgsType.size() < non_default_args) {
             containsError = true;
             MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
             methodCall.addError(exception);
@@ -476,6 +480,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     @Override
     public Type visit(ObjectMemberAccess objectMemberAccess) {
         //Todo
+        this.current_mehtod = objectMemberAccess.getMemberName().getName();
         boolean prevSeenNoneLvalue = this.seenNoneLvalue;
         Type instanceType = objectMemberAccess.getInstance().accept(this);
         if(objectMemberAccess.getInstance() instanceof SelfClass)
