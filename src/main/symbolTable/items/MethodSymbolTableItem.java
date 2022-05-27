@@ -24,7 +24,6 @@ public class MethodSymbolTableItem extends SymbolTableItem {
 
             if (argPair.getDefaultValue() == null) {
                 this.non_default_args += 1;
-
             }
 
         }

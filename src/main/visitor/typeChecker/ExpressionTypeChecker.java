@@ -583,17 +583,23 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         Type trueExprAcc = trueExpr.accept(this);
         Type falseExprAcc = falseExpr.accept(this);
 
+        Boolean hasError = false;
+
         if (!(condAcc instanceof BoolType)){
             // The first operand should be Bool!
             ConditionNotBool exception = new ConditionNotBool(condition.getLine());
             ternaryExpression.addError(exception);
-            return new NoType();
+            hasError = true;
         }
 
         if(!isSameType(trueExprAcc,falseExprAcc))
         {
             UnsupportedOperandType exception = new UnsupportedOperandType(condition.getLine(), TernaryOperator.ternary.name());
             ternaryExpression.addError(exception);
+            hasError = true;
+        }
+
+        if (hasError) {
             return new NoType();
         }
 
