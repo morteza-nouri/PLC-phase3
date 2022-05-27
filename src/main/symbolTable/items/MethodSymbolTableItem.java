@@ -22,9 +22,11 @@ public class MethodSymbolTableItem extends SymbolTableItem {
         for(ArgPair argPair : methodDeclaration.getArgs()) {
             this.argTypes.add(argPair.getVariableDeclaration().getType());
 
-            if (argPair.getDefaultValue() != null) {
-                non_default_args += 1;
+            if (argPair.getDefaultValue() == null) {
+                this.non_default_args += 1;
+
             }
+
         }
         this.name = methodDeclaration.getMethodName().getName();
     }

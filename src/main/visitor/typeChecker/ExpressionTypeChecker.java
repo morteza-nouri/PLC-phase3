@@ -289,6 +289,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTableItem.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + "initialize", true);
                 ArrayList<Type> constructorActualTypes = methodSymbolTableItem.getArgTypes();
                 int non_default_args = methodSymbolTableItem.non_default_args;
+
                 if (newInstanceTypes.size() < non_default_args || newInstanceTypes.size() > constructorActualTypes.size()){
                     ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
                     newClassInstance.addError(exception);
