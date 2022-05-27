@@ -6,7 +6,7 @@ import java.util.ArrayList;
 
 //line -> LPAR before arguments or INC or DEC
 public class MethodCall extends Expression {
-    private Expression instance;
+    public Expression instance;
     private ArrayList<Expression> args = new ArrayList<>();
 
     public MethodCall(Expression instance) {
@@ -19,7 +19,7 @@ public class MethodCall extends Expression {
     }
 
     public Expression getInstance() {
-        return instance;
+        return this.instance;
     }
 
     public void setInstance(Expression instance) {

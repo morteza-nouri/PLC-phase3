@@ -8,6 +8,8 @@ public class FptrType extends Type {
     private ArrayList<Type> argumentsTypes = new ArrayList<>();
     private Type returnType;
 
+    public int non_default_args;
+
     public FptrType() {
     }
 
@@ -17,6 +19,7 @@ public class FptrType extends Type {
         this.argumentsTypes = argumentsTypes;
         this.returnType = returnType;
     }
+
 
     public ArrayList<Type> getArgumentsTypes() {
         return argumentsTypes;
@@ -32,6 +35,10 @@ public class FptrType extends Type {
 
     public void setReturnType(Type returnType) {
         this.returnType = returnType;
+    }
+
+    public void setNonDefaultArgs(int _non_default_args) {
+        this.non_default_args = _non_default_args;
     }
 
     public void addArgumentType(Type type) {

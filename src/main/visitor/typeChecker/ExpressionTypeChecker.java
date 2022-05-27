@@ -26,6 +26,7 @@ import main.symbolTable.SymbolTable;
 import main.symbolTable.exceptions.ItemNotFoundException;
 import main.symbolTable.items.*;
 import main.symbolTable.utils.graph.Graph;
+import main.symbolTable.utils.graph.exceptions.GraphDoesNotContainNodeException;
 import main.util.ArgPair;
 import main.visitor.Visitor;
 import main.ast.nodes.declaration.classDec.classMembersDec.FieldDeclaration;
@@ -38,7 +39,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     private MethodDeclaration currentMethod;
     private boolean seenNoneLvalue = false;
     private boolean isInMethodCallStatement = false;
-    private String current_mehtod;
 
     private String current_class;
 
@@ -285,12 +285,13 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         for(Expression expression : newClassInstance.getArgs())
             newInstanceTypes.add(expression.accept(this));
         if(this.classHierarchy.doesGraphContainNode(className)) {
+
             try {
                 ClassSymbolTableItem classSymbolTableItem = (ClassSymbolTableItem) SymbolTable.root.getItem(ClassSymbolTableItem.START_KEY + className, true);
                 MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTableItem.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + "initialize", true);
                 ArrayList<Type> constructorActualTypes = methodSymbolTableItem.getArgTypes();
                 int non_default_args = methodSymbolTableItem.non_default_args;
-                if (newInstanceTypes.size() < non_default_args){
+                if (newInstanceTypes.size() < non_default_args || newInstanceTypes.size() > constructorActualTypes.size()){
                     ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
                     newClassInstance.addError(exception);
                     return new NoType();
@@ -402,17 +403,18 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
         isInMethodCallStatement = false;
 
-        int non_default_args = fptrArgsType.size();
+        System.out.println(fptrType.non_default_args);
 
-        // If args of fptr and method call is not the same then print error.
-        if (methodCallArgsType.size() < non_default_args) {
+        if (methodCallArgsType.size() < fptrType.non_default_args || methodCallArgsType.size() > fptrArgsType.size()) {
             containsError = true;
             MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
             methodCall.addError(exception);
+
+            return new NoType();
         }
 
         else if (fptrArgsType.size() != 0) {
-            for(int i = 0; i < fptrArgsType.size(); i += 1){
+            for(int i = 0; i < methodCallArgsType.size(); i += 1){
                 if (!isSameType(fptrArgsType.get(i), methodCallArgsType.get(i))) {
                     containsError = true;
                     MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
@@ -480,7 +482,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     @Override
     public Type visit(ObjectMemberAccess objectMemberAccess) {
         //Todo
-        this.current_mehtod = objectMemberAccess.getMemberName().getName();
         boolean prevSeenNoneLvalue = this.seenNoneLvalue;
         Type instanceType = objectMemberAccess.getInstance().accept(this);
         if(objectMemberAccess.getInstance() instanceof SelfClass)
@@ -503,7 +504,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 try {
                     MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTable.getItem(MethodSymbolTableItem.START_KEY + memberName, true);
                     this.seenNoneLvalue = true;
-                    return new FptrType(methodSymbolTableItem.getArgTypes(), methodSymbolTableItem.getReturnType());
+                    FptrType ft = new FptrType(methodSymbolTableItem.getArgTypes(), methodSymbolTableItem.getReturnType());
+                    ft.setNonDefaultArgs(methodSymbolTableItem.non_default_args);
+                    return ft;
                 } catch (ItemNotFoundException memberNotFound) {
                     if(memberName.equals(className)) {
                         this.seenNoneLvalue = true;
