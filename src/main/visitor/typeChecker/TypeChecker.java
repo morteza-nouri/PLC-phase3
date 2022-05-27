@@ -36,8 +36,8 @@ import java.util.Set;
 public class TypeChecker extends Visitor<Void> {
     private Graph<String> classHierarchy;
     private ExpressionTypeChecker expressionTypeChecker;
-    private ClassDeclaration currentClass;
-    private MethodDeclaration currentMethod;
+    private ClassDeclaration curr_class;
+    private MethodDeclaration curr_method;
     private boolean mainDeclared;
     private boolean hasReturn = false;
 
@@ -52,8 +52,8 @@ public class TypeChecker extends Visitor<Void> {
         for (ClassDeclaration classDeclaration : program.getClasses()) {
             if (classDeclaration.getClassName().getName().equals("Main"))
                 this.mainDeclared = true;
-            this.expressionTypeChecker.setCurrentClass(classDeclaration);
-            this.currentClass = classDeclaration;
+            this.expressionTypeChecker.setCurrClass(classDeclaration);
+            this.curr_class = classDeclaration;
             classDeclaration.accept(this);
         }
         if (!this.mainDeclared) {
@@ -80,8 +80,8 @@ public class TypeChecker extends Visitor<Void> {
             fieldDeclaration.accept(this);
         }
         if (classDeclaration.getConstructor() != null) {
-            this.expressionTypeChecker.setCurrentMethod(classDeclaration.getConstructor());
-            this.currentMethod = classDeclaration.getConstructor();
+            this.expressionTypeChecker.setCurrMethod(classDeclaration.getConstructor());
+            this.curr_method = classDeclaration.getConstructor();
             classDeclaration.getConstructor().accept(this);
         }
         else if (classDeclaration.getClassName().getName().equals("Main")) {
@@ -89,8 +89,8 @@ public class TypeChecker extends Visitor<Void> {
             classDeclaration.addError(exception);
         }
         for (MethodDeclaration methodDeclaration : classDeclaration.getMethods()) {
-            this.expressionTypeChecker.setCurrentMethod(methodDeclaration);
-            this.currentMethod = methodDeclaration;
+            this.expressionTypeChecker.setCurrMethod(methodDeclaration);
+            this.curr_method = methodDeclaration;
             methodDeclaration.accept(this);
         }
         return null;
@@ -99,7 +99,7 @@ public class TypeChecker extends Visitor<Void> {
     @Override
     public Void visit(ConstructorDeclaration constructorDeclaration) {
         constructorDeclaration.setReturnType(new NullType());
-        if (this.currentClass.getClassName().getName().equals("Main")) {
+        if (this.curr_class.getClassName().getName().equals("Main")) {
             if (constructorDeclaration.getArgs().size() != 0) {
                 MainConstructorCantHaveArgs exception = new MainConstructorCantHaveArgs(constructorDeclaration.getLine());
                 constructorDeclaration.addError(exception);
@@ -116,7 +116,7 @@ public class TypeChecker extends Visitor<Void> {
         for (ArgPair argPair : methodDeclaration.getArgs()) {
             if (argPair.getDefaultValue() != null) {
                 Type valType = argPair.getDefaultValue().accept(this.expressionTypeChecker);
-                if (!this.expressionTypeChecker.isSameType(argPair.getVariableDeclaration().getType(), valType)) {
+                if (!this.expressionTypeChecker.isAllSameType(argPair.getVariableDeclaration().getType(), valType)) {
                     UnsupportedOperandType exception = new UnsupportedOperandType(argPair.getVariableDeclaration().getLine(), BinaryOperator.assign.name());
                     argPair.getVariableDeclaration().addError(exception);
                 }
@@ -159,13 +159,13 @@ public class TypeChecker extends Visitor<Void> {
     public Void visit(AssignmentStmt assignmentStmt) {
         Type lType = assignmentStmt.getlValue().accept(this.expressionTypeChecker);
         Type rType = assignmentStmt.getrValue().accept(this.expressionTypeChecker);
-        if (!this.expressionTypeChecker.isLvalue(assignmentStmt.getlValue())) {
+        if (!this.expressionTypeChecker.isLeftVal(assignmentStmt.getlValue())) {
             assignmentStmt.addError(new LeftSideNotLvalue(assignmentStmt.getLine()));
         }
 
         if (lType instanceof NoType)
             return null;
-        if (!this.expressionTypeChecker.isSameType(rType, lType)) {
+        if (!this.expressionTypeChecker.isAllSameType(rType, lType)) {
             int line = assignmentStmt.getLine();
             UnsupportedOperandType exception = new UnsupportedOperandType(line, BinaryOperator.assign.toString());
         }
@@ -229,9 +229,9 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(MethodCallStmt methodCallStmt) {
-        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(true);
         methodCallStmt.getMethodCall().accept(this.expressionTypeChecker);
-        this.expressionTypeChecker.setIsInMethodCallStatement(false);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(false);
         return null;
     }
 
@@ -248,12 +248,12 @@ public class TypeChecker extends Visitor<Void> {
     public Void visit(ReturnStmt returnStmt) {
         this.hasReturn = true;
         Type retType = returnStmt.getReturnedExpr().accept(this.expressionTypeChecker);
-        Type methodRetType = this.currentMethod.getReturnType();
+        Type methodRetType = this.curr_method.getReturnType();
         if ( methodRetType instanceof VoidType) {
-            returnStmt.addError(new VoidMethodHasReturn(this.currentMethod));
+            returnStmt.addError(new VoidMethodHasReturn(this.curr_method));
             return null;
         }
-        if (!this.expressionTypeChecker.isSameType(retType, methodRetType))
+        if (!this.expressionTypeChecker.isAllSameType(retType, methodRetType))
                 returnStmt.addError(new ReturnValueNotMatchMethodReturnType(returnStmt));
         return null;
     }
@@ -268,7 +268,7 @@ public class TypeChecker extends Visitor<Void> {
             eachStmt.addError(exception);
             nonIterable = true;
         }
-        if (!nonIterable && !this.expressionTypeChecker.isSameType(varType, ((ArrayType)iterableType).getType())) {
+        if (!nonIterable && !this.expressionTypeChecker.isAllSameType(varType, ((ArrayType)iterableType).getType())) {
             EachVarNotMatchList exception = new EachVarNotMatchList(eachStmt);
             eachStmt.addError(exception);
 //            return null;
@@ -289,17 +289,17 @@ public class TypeChecker extends Visitor<Void> {
 
     @Override
     public Void visit(SetAdd setAdd) {
-        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(true);
         setAdd.getElementArg().accept(this.expressionTypeChecker);
-        this.expressionTypeChecker.setIsInMethodCallStatement(false);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(false);
         return null;
     }
 
     @Override
     public Void visit(SetInclude setInclude) {
-        this.expressionTypeChecker.setIsInMethodCallStatement(true);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(true);
         setInclude.getElementArg().accept(this.expressionTypeChecker);
-        this.expressionTypeChecker.setIsInMethodCallStatement(false);
+        this.expressionTypeChecker.setIsInMethodCallStmnt(false);
         return null;
     }
 
