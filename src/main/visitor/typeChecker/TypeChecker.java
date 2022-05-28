@@ -168,6 +168,7 @@ public class TypeChecker extends Visitor<Void> {
         if (!this.expressionTypeChecker.isAllSameType(rType, lType)) {
             int line = assignmentStmt.getLine();
             UnsupportedOperandType exception = new UnsupportedOperandType(line, BinaryOperator.assign.toString());
+            assignmentStmt.addError(exception);
         }
 
         return null;

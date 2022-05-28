@@ -78,7 +78,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 
     // Done
     public boolean isAllSameType(Type first, Type second) {
-        if (first instanceof NoType || second instanceof NoType)
+        if (first instanceof NoType)
             return true;
         else if (first instanceof BoolType && second instanceof BoolType)
             return true;
@@ -251,7 +251,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     }
 
     // Done
-    public boolean areTypesOfFirstAndSecondTheSameMultiple(ArrayList<Type> A, ArrayList<Type> B) {
+    public boolean areTypesOfFirstAndSecondTheSame(ArrayList<Type> A, ArrayList<Type> B) {
         for(int i = 0; i < A.size(); i++)
             if(!areTypesOfFirstAndSecondTheSame(A.get(i), B.get(i)))
                 return false;
@@ -276,7 +276,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 return false;
             ArrayList<Type> arg_type1 = ((FptrType) A).getArgumentsTypes();
             ArrayList<Type> arg_type2 = ((FptrType) B).getArgumentsTypes();
-            return areTypesOfFirstAndSecondTheSameMultiple(arg_type2, arg_type1);
+            return areTypesOfFirstAndSecondTheSame(arg_type2, arg_type1);
         }
         else if(A instanceof ClassType) {
             if((B instanceof ClassType) == false)
@@ -313,7 +313,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
 //                    newClassInstance.addError(exception);
 //                    return new NoType();
 //                }
-                if(this.areTypesOfFirstAndSecondTheSameMultiple(newInstTypes, constructorActualTypes)) {
+                if(this.areTypesOfFirstAndSecondTheSame(newInstTypes, constructorActualTypes)) {
                     return newClassInstance.getClassType();
                 }
                 else {
