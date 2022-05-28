@@ -41,6 +41,8 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     private boolean noneLeftValueSeen = false;
     private String current_class;
 
+    private MethodSymbolTableItem current_method_symbol_table;
+
     public ExpressionTypeChecker(Graph<String> classHierarchy) {
         this.classHierarchy = classHierarchy;
     }
@@ -63,8 +65,8 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         this.noneLeftValueSeen = false;
         expression.accept(this);
         boolean isLeftVal = !this.noneLeftValueSeen;
-        this.noneLeftValueSeen = oldNoneLeftValueSeen;
         Node.isCatchErrorsActive = oldIsCatchErrorsActive;
+        this.noneLeftValueSeen = oldNoneLeftValueSeen;
         return isLeftVal;
     }
 
@@ -95,10 +97,8 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         else if (first instanceof ClassType) {
             if ((second instanceof ClassType) == false)
                 return false;
-
             String s1 = ((ClassType) first).getClassName().getName();
             String s2 = ((ClassType) second).getClassName().getName();
-
             return classHierarchy.isSecondNodeAncestorOf(s1, s2);
         }
         else if (first instanceof ArrayType) {
@@ -307,12 +307,18 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 ClassSymbolTableItem classSymbolTableItem = (ClassSymbolTableItem) SymbolTable.root.getItem(ClassSymbolTableItem.START_KEY + class_name, true);
                 MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTableItem.getClassSymbolTable().getItem(MethodSymbolTableItem.START_KEY + "initialize", true);
                 ArrayList<Type> constructorActualTypes = methodSymbolTableItem.getArgTypes();
-                int non_default_args = methodSymbolTableItem.non_default_args;
+                int non_default_args = this.calc_non_default_args(methodSymbolTableItem);
                 if (newInstTypes.size() < non_default_args || newInstTypes.size() > constructorActualTypes.size()){
                     ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
                     newClassInstance.addError(exception);
                     return new NoType();
                 }
+
+//                if (newInstTypes.size() != constructorActualTypes.size()){
+//                    ConstructorArgsNotMatchDefinition exception = new ConstructorArgsNotMatchDefinition(newClassInstance);
+//                    newClassInstance.addError(exception);
+//                    return new NoType();
+//                }
                 if(this.areTypesOfFirstAndSecondTheSameMultiple(newInstTypes, constructorActualTypes)) {
                     return newClassInstance.getClassType();
                 }
@@ -382,6 +388,18 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
     }
 
+    private int calc_non_default_args(MethodSymbolTableItem MSTI)
+    {
+        int count = 0;
+        MethodDeclaration md = MSTI.getMethodDeclaration();
+        for(ArgPair argPair : md.getArgs()) {
+            if (argPair.getDefaultValue() == null) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
     @Override
     public Type visit(MethodCall methodCall) {
         //Todo: done
@@ -390,6 +408,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         boolean oldInMethodCallStmt = isInMethodCallStmnt;
         isInMethodCallStmnt = false;
         Type instTypeRet = methodCall.getInstance().accept(this);
+
         for (Expression expression : methodCall.getArgs()) {
             Type type = expression.accept(this);
             argsTypeMethodCallRet.add(type);
@@ -411,13 +430,22 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
         isInMethodCallStmnt = false;
 
-        if (argsTypeMethodCallRet.size() < funcPtrTypes.non_default_args || argsTypeMethodCallRet.size() > funcPtrParamTypes.size()) {
+        int non_default_args = this.calc_non_default_args(this.current_method_symbol_table);
+        if (argsTypeMethodCallRet.size() < non_default_args || argsTypeMethodCallRet.size() > funcPtrParamTypes.size()) {
             containsError = true;
             MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
             methodCall.addError(exception);
 
             return new NoType();
         }
+
+//        if (argsTypeMethodCallRet.size() != funcPtrParamTypes.size()) {
+//            containsError = true;
+//            MethodCallNotMatchDefinition exception = new MethodCallNotMatchDefinition(methodCall.getLine());
+//            methodCall.addError(exception);
+//
+//            return new NoType();
+//        }
 
         else if (funcPtrParamTypes.size() != 0) {
             for(int i = 0; i < argsTypeMethodCallRet.size(); i += 1){
@@ -491,7 +519,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         Type instTypeRet = objectMemberAccess.getInstance().accept(this);
         if(objectMemberAccess.getInstance() instanceof SelfClass)
             this.noneLeftValueSeen = oldNoneLeftValueSeen;
-        String memberName = objectMemberAccess.getMemberName().getName();
+        String name_member = objectMemberAccess.getMemberName().getName();
         if(instTypeRet instanceof NoType)
             return new NoType();
         else if(instTypeRet instanceof ClassType) {
@@ -503,22 +531,23 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 return new NoType();
             }
             try {
-                FieldSymbolTableItem fieldSymbolTableItem = (FieldSymbolTableItem) classSymbolTable.getItem(FieldSymbolTableItem.START_KEY + memberName, true);
+                FieldSymbolTableItem fieldSymbolTableItem = (FieldSymbolTableItem) classSymbolTable.getItem(FieldSymbolTableItem.START_KEY + name_member, true);
                 return fieldSymbolTableItem.getType();
             } catch (ItemNotFoundException memberNotField) {
                 try {
-                    MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTable.getItem(MethodSymbolTableItem.START_KEY + memberName, true);
+                    MethodSymbolTableItem methodSymbolTableItem = (MethodSymbolTableItem) classSymbolTable.getItem(MethodSymbolTableItem.START_KEY + name_member, true);
+                    this.current_method_symbol_table = methodSymbolTableItem;
                     this.noneLeftValueSeen = true;
                     FptrType ft = new FptrType(methodSymbolTableItem.getArgTypes(), methodSymbolTableItem.getReturnType());
-                    ft.setNonDefaultArgs(methodSymbolTableItem.non_default_args);
+//                    ft.setNonDefaultArgs(methodSymbolTableItem.non_default_args);
                     return ft;
                 } catch (ItemNotFoundException ignore) {
-                    if(memberName.equals(class_name)) {
+                    if(name_member.equals(class_name)) {
                         this.noneLeftValueSeen = true;
                         FptrType ft = new FptrType(new ArrayList<>(), new NullType());
                         return ft;
                     }
-                    MemberNotAvailableInClass exception = new MemberNotAvailableInClass(objectMemberAccess.getLine(), memberName, class_name);
+                    MemberNotAvailableInClass exception = new MemberNotAvailableInClass(objectMemberAccess.getLine(), name_member, class_name);
                     objectMemberAccess.addError(exception);
                     return new NoType();
                 }
