@@ -50,12 +50,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     public void setCurrClass(ClassDeclaration classDeclaration) {
         this.curr_class = classDeclaration;
     }
-    public void setCurrMethod(MethodDeclaration methodDeclaration) {
-        this.curr_method = methodDeclaration;
-    }
-    public void setIsInMethodCallStmnt(boolean isInMethodCall) {
-        this.isInMethodCallStmnt = isInMethodCall;
-    }
 
     // Done
     public boolean isLeftVal(Expression expression) {
@@ -234,7 +228,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
         if(op == BinaryOperator.assign) {
             boolean isLeftValueFirst = this.isLeftVal(binaryExpression.getFirstOperand());
-            if(!isLeftValueFirst) {
+            if(isLeftValueFirst == false) {
                 LeftSideNotLvalue exception = new LeftSideNotLvalue(binaryExpression.getLine());
                 binaryExpression.addError(exception);
             }
@@ -285,7 +279,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             return areTypesOfFirstAndSecondTheSameMultiple(arg_type2, arg_type1);
         }
         else if(A instanceof ClassType) {
-            if(!(B instanceof ClassType))
+            if((B instanceof ClassType) == false)
                 return false;
             return this.classHierarchy.isSecondNodeAncestorOf(((ClassType) A).getClassName().getName(), ((ClassType) B).getClassName().getName());
         }
@@ -684,5 +678,12 @@ public class ExpressionTypeChecker extends Visitor<Type> {
     public Type visit(NullValue nullValue) {
         this.noneLeftValueSeen = true;
         return new NullType();
+    }
+
+    public void setCurrMethod(MethodDeclaration methodDeclaration) {
+        this.curr_method = methodDeclaration;
+    }
+    public void setIsInMethodCallStmnt(boolean isInMethodCall) {
+        this.isInMethodCallStmnt = isInMethodCall;
     }
 }
