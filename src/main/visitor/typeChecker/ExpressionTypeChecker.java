@@ -88,11 +88,11 @@ public class ExpressionTypeChecker extends Visitor<Type> {
             return true;
         else if (first instanceof BoolType && second instanceof BoolType)
             return true;
-        else if (first instanceof VoidType && second instanceof VoidType)
-            return true;
         else if (first instanceof IntType && second instanceof IntType)
             return true;
         else if (first instanceof SetType && second instanceof SetType)
+            return true;
+        else if (first instanceof VoidType && second instanceof VoidType)
             return true;
         else if (first instanceof ClassType) {
             if ((second instanceof ClassType) == false)
@@ -164,12 +164,12 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 binaryExpression.addError(exception);
                 return new NoType();
             }
-            else if ((type2 instanceof NoType && type1 instanceof ArrayType)) {
+            else if (type2 instanceof NoType && type1 instanceof ArrayType) {
                 UnsupportedOperandType exception = new UnsupportedOperandType(binaryExpression.getLine(), op.name());
                 binaryExpression.addError(exception);
                 return new NoType();
             }
-            else if(type1 instanceof NoType || type2 instanceof NoType)
+            else if( (type1 instanceof NoType) || (type2 instanceof NoType) )
                 return new NoType();
             if((type1 instanceof IntType || type1 instanceof BoolType) && type1.toString().equals(type2.toString()))
                 return new BoolType();
@@ -354,7 +354,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         if(op == UnaryOperator.not) {
             if(opType instanceof NoType)
                 return new NoType();
-            if(opType instanceof BoolType)
+            else if(opType instanceof BoolType)
                 return opType;
             UnsupportedOperandType exception = new UnsupportedOperandType(unaryExpression.getLine(), op.name());
             unaryExpression.addError(exception);
@@ -363,7 +363,7 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         else if(op == UnaryOperator.minus) {
             if(opType instanceof NoType)
                 return new NoType();
-            if(opType instanceof IntType)
+            else if(opType instanceof IntType)
                 return opType;
             UnsupportedOperandType exception = new UnsupportedOperandType(unaryExpression.getLine(), op.name());
             unaryExpression.addError(exception);
@@ -375,9 +375,9 @@ public class ExpressionTypeChecker extends Visitor<Type> {
                 IncDecOperandNotLvalue exception = new IncDecOperandNotLvalue(unaryExpression.getLine(), op.name());
                 unaryExpression.addError(exception);
             }
-            if(opType instanceof NoType)
+            else if(opType instanceof NoType)
                 return new NoType();
-            if(opType instanceof IntType) {
+            else if(opType instanceof IntType) {
                 if(isOpLeftVal)
                     return opType;
                 return new NoType();
@@ -509,8 +509,6 @@ public class ExpressionTypeChecker extends Visitor<Type> {
         }
         return new NoType();
     }
-
-
 
     @Override
     public Type visit(ObjectMemberAccess objectMemberAccess) {
